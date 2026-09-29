@@ -1,8 +1,8 @@
 """
 Обучение модели бинарной классификации для валидации медицинских анализов.
 
-Использует GradientBoostingClassifier из scikit-learn с class_weight='balanced'
-для компенсации дисбаланса классов (95% valid / 5% invalid).
+Использует GradientBoostingClassifier из scikit-learn с подбором порога
+классификации для компенсации дисбаланса классов (95% valid / 5% invalid).
 
 Артефакты (модель, scaler, метаданные) сохраняются в model/<version>/.
 """
@@ -145,7 +145,14 @@ def save_model(model, scaler, threshold, metrics, version=MODEL_VERSION):
     print(f"Артефакты сохранены в {out_dir}/")
 
 
-if __name__ == "__main__":
+def train(version: str = MODEL_VERSION):
+    """
+    Обучает модель и сохраняет артефакты в model/<version>/.
+
+    Возвращает путь к сохранённой модели.
+    Используется как из CLI (python src/train.py),
+    так и из API (POST /retrain).
+    """
     print("=" * 60)
     print("Обучение модели валидации медицинских анализов")
     print("=" * 60)
@@ -179,9 +186,14 @@ if __name__ == "__main__":
     # 5. Сохранение артефактов
     print("\n[5/5] Сохранение модели...")
     test_metrics = evaluate_model(model, X_test, y_test, threshold=best_threshold)
-    save_model(model, scaler, best_threshold, test_metrics)
+    save_model(model, scaler, best_threshold, test_metrics, version=version)
 
     print("\n" + "=" * 60)
-    print("Готово!")
+    print(f"Готово! Модель сохранена в model/{version}/")
     print("=" * 60)
 
+    return f"model/{version}"
+
+
+if __name__ == "__main__":
+    train()

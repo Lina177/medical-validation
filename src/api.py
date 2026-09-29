@@ -14,7 +14,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -163,4 +163,65 @@ def predict(payload: PredictRequest) -> PredictResponse:
         verdict=verdict,
         confidence=round(prob, 4),
         model_version=bundle.version,
+    )
+
+
+# ---------- Корневой эндпоинт ----------
+
+@app.get("/")
+def root():
+    """Приветственная страница API."""
+    return {
+        "message": "Medical Analysis Validation API",
+        "description": "Сервис валидации медицинских анализов (ML-модель)",
+        "version": bundle.version or "1.0.0",
+        "docs": "/docs",
+        "predict": "/predict",
+    }
+
+
+
+
+# ---------- Эндпоинт /retrain ----------
+
+class RetrainRequest(BaseModel):
+    """Схема запроса на переобучение модели."""
+    version: str = Field(..., pattern=r"^\d+\.\d+\.\d+$",
+                         description="Новая версия, например '1.1.0'")
+
+
+class RetrainResponse(BaseModel):
+    """Схема ответа /retrain."""
+    status: str
+    new_version: str
+    message: str
+
+
+@app.post("/retrain", response_model=RetrainResponse, status_code=202)
+def retrain(payload: RetrainRequest, background_tasks: BackgroundTasks):
+    """
+    Запускает переобучение модели в фоне и сохраняет новую версию.
+
+    Возвращает 202 Accepted сразу — обучение идёт асинхронно.
+    Проверь логи сервера, чтобы увидеть завершение.
+    """
+    from src.train import train as run_training
+
+    logger.info("Запуск переобучения модели → версия %s", payload.version)
+
+    def _do_retrain(version: str):
+        try:
+            path = run_training(version=version)
+            logger.info("Переобучение завершено: %s", path)
+            bundle.load(version=version)
+            logger.info("Активная модель переключена на версию %s", version)
+        except Exception as exc:
+            logger.exception("Ошибка переобучения: %s", exc)
+
+    background_tasks.add_task(_do_retrain, payload.version)
+
+    return RetrainResponse(
+        status="accepted",
+        new_version=payload.version,
+        message="Обучение запущено в фоне. Проверьте логи сервера через 30-60 секунд.",
     )
