@@ -1,0 +1,20 @@
+# Виртуальное окружение
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# PyCharm / IDE
+.idea/
+.vscode/
+
+# Тесты
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
